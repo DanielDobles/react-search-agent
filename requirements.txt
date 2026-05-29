@@ -1,0 +1,9 @@
+# Dependencias del Agente de Búsqueda y Análisis Inmobiliario
+firecrawl-py>=4.28.2
+langchain>=1.3.2
+langchain-community>=0.4.2
+langchain-openai>=1.2.2
+langchainhub>=0.1.21
+python-dotenv>=1.2.2
+ruff>=0.15.15
+ty>=0.0.40

@@ -159,7 +159,7 @@ def main():
         final_report = messages_val[-1].content
         
         # Escribir el informe a informe_mercado_lecheria.md en el workspace
-        filename = "informe_mercado_lecheria.md"
+        filename = "informe_mercado.md"
         filepath = os.path.join(r"c:\Users\armon\DEV\react-search-agent", filename)
         
         with open(filepath, "w", encoding="utf-8") as f:
