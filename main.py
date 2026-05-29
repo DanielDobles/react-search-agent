@@ -5,6 +5,7 @@ from firecrawl import Firecrawl
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
+from langchain_core.runnables import RunnableLambda
 
 # 1. Cargar variables de entorno del archivo .env local
 load_dotenv(r"c:\Users\armon\DEV\react-search-agent\.env")
@@ -120,46 +121,74 @@ validator_agent = create_agent(
     )
 )
 
+# 5. CONSTRUCCIÓN DE LA CADENA SECUENCIAL UTILIZANDO LCEL (LangChain Expression Language)
+
+# Paso 1: Invocar al Agente Investigador
+run_investigator = RunnableLambda(
+    lambda query: (
+        print("\n[Agente 1 ReAct] Iniciando investigación de ofertas con Firecrawl..."),
+        investigator_agent.invoke({"messages": [{"role": "user", "content": query}]})
+    )[1]
+)
+
+# Paso 2: Extraer la información cruda del primer agente
+extract_raw_data = RunnableLambda(
+    lambda res: (
+        print("[Exito] Agente Investigador ReAct recopiló datos del mercado."),
+        res.get("messages", [])[-1].content if res.get("messages") else ""
+    )[1]
+)
+
+# Paso 3: Formatear la consulta para el Agente Validador
+format_validator_input = RunnableLambda(
+    lambda raw_data: (
+        print("\n[Agente 2 ReAct] Transfiriendo datos para análisis financiero y selección MVP..."),
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": (
+                        f"Por favor, valida, calcula y genera el informe enfocado en oportunidades de inversión MVP "
+                        f"con base en los siguientes datos crudos recopilados por el investigador:\n\n{raw_data}"
+                    )
+                }
+            ]
+        }
+    )[1]
+)
+
+# Paso 4: Invocar al Agente Validador
+run_validator = RunnableLambda(
+    lambda inputs: validator_agent.invoke(inputs)
+)
+
+# Paso 5: Extraer el reporte final del validador
+extract_final_report = RunnableLambda(
+    lambda res: res.get("messages", [])[-1].content if res.get("messages") else "No se obtuvo reporte."
+)
+
+# Enlazar los pasos usando el operador '|' de LCEL
+lcel_multiagent_chain = (
+    run_investigator 
+    | extract_raw_data 
+    | format_validator_input 
+    | run_validator 
+    | extract_final_report
+)
+
 def main():
     print("=" * 60)
-    print("SISTEMA REACT MULTI-AGENTE INMOBILIARIO (LANGCHAIN 1.X + DEEPSEEK)")
+    print("SISTEMA MULTI-AGENTE LCEL PIPELINE (LANGCHAIN 1.X + DEEPSEEK)")
     print("=" * 60)
     
-    # 1. Ejecutar el Agente Investigador ReAct
-    print("\n[Agente 1 ReAct] Iniciando investigación de ofertas con Firecrawl...")
     query_investigacion = "Busca listados de apartamentos en venta en Lecheria, Anzoategui, Venezuela con precios en USD, metros cuadrados y ubicaciones."
     
     try:
-        inputs_inv = {"messages": [{"role": "user", "content": query_investigacion}]}
-        res_inv = investigator_agent.invoke(inputs_inv)
-        
-        messages_inv = res_inv.get("messages", [])
-        if not messages_inv:
-            print("Error: El Agente Investigador no devolvió resultados.")
-            return
-            
-        raw_data = messages_inv[-1].content
-        print("\n[Exito] Agente Investigador ReAct recopiló datos del mercado.")
-        
-        # 2. Ejecutar el Agente Validador / Analista ReAct
-        print("\n[Agente 2 ReAct] Transfiriendo datos para análisis financiero y selección MVP...")
-        query_val = (
-            f"Por favor, valida, calcula y genera el informe enfocado en oportunidades de inversión MVP "
-            f"con base en los siguientes datos crudos recopilados por el investigador:\n\n{raw_data}"
-        )
-        
-        inputs_val = {"messages": [{"role": "user", "content": query_val}]}
-        res_val = validator_agent.invoke(inputs_val)
-        
-        messages_val = res_val.get("messages", [])
-        if not messages_val:
-            print("Error: El Agente Validador no devolvió resultados.")
-            return
-            
-        final_report = messages_val[-1].content
+        # Ejecutar la cadena LCEL completa de un tirón
+        final_report = lcel_multiagent_chain.invoke(query_investigacion)
         
         # Escribir el informe a informe_mercado_lecheria.md en el workspace
-        filename = "informe_mercado.md"
+        filename = "informe_mercado_lecheria.md"
         filepath = os.path.join(r"c:\Users\armon\DEV\react-search-agent", filename)
         
         with open(filepath, "w", encoding="utf-8") as f:
